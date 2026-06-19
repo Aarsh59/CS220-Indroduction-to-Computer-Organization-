@@ -1,0 +1,54 @@
+unsigned reset=1, ins_addr, ins, done_storing=0, done,
+total_cycles, proc_cycles;
+int out[4];
+unsigned flush_io_regs, done_copying_io_regs=0,
+io_regs_index, print_out_count=1;
+Xil_Out32(base_addr, reset);
+Xil_Out32(base_addr+3, done_storing);
+Xil_Out32(base_addr+4, done_copying_io_regs);
+reset=0;
+Xil_Out32(base_addr, reset);
+// Input the translated instruction sequence
+// See previous lab’s Vitis C program for an example
+done_storing = 1;
+Xil_Out32(base_addr+3, done_storing);
+while (1) {
+flush_io_regs = 0;
+done = 0;
+while (!flush_io_regs && !done) {
+flush_io_regs = Xil_In32(base_addr+12);
+done = Xil_In32(base_addr+5);
+}
+if (flush_io_regs) {
+out[0] = Xil_In32(base_addr+6);
+out[1] = Xil_In32(base_addr+7);
+out[2] = Xil_In32(base_addr+8);
+out[3] = Xil_In32(base_addr+9);
+done_copying_io_regs = 1;
+Xil_Out32(base_addr+4, done_copying_io_regs);
+done_copying_io_regs = 0;
+Xil_Out32(base_addr+4, done_copying_io_regs);
+for (int i=0; i<4; i++) {
+xil_printf("out%d=%d\n\r", print_out_count,
+out[i]);
+print_out_count++;
+}
+}
+ if (done) {
+io_regs_index = Xil_In32(base_addr+13);
+int i=6;
+while (io_regs_index > 0) {
+out[0] = Xil_In32(base_addr+i);
+xil_printf("out%d=%d\n\r", print_out_count, out[0]);
+io_regs_index--;
+print_out_count++;
+i++;
+}
+break;
+}
+} // while(1) loop ends
+total_cycles = Xil_In32(base_addr+10);
+proc_cycles = Xil_In32(base_addr+11);
+xil_printf("Total cycles: %u, computation cycles: %u\n\r",
+total_cycles, proc_cycles);
+printf("Processor cycles per instruction (CPI): %f\n\r",((float)proc_cycles)/(ins_addr+1));

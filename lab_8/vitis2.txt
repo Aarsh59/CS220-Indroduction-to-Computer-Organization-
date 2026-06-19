@@ -1,0 +1,126 @@
+ unsigned reset=1, ins_addr=0, ins, done_storing=0, done,
+             total_cycles, proc_cycles;
+    int out[4];
+    unsigned flush_io_regs, done_copying_io_regs=0,
+             io_regs_index, print_out_count=1;
+
+    // reset
+    Xil_Out32(base_addr, reset);
+    Xil_Out32(base_addr+3, done_storing);
+    Xil_Out32(base_addr+4, done_copying_io_regs);
+    reset=0;
+    Xil_Out32(base_addr, reset);
+
+    // pc=0: addi $1,$0,10
+    ins_addr=0; ins=0x2001000A;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=1: addi $2,$0,0
+    ins_addr=1; ins=0x20020000;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=2: addi $3,$0,30
+    ins_addr=2; ins=0x2003001E;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=3: addi $6,$0,1004
+    ins_addr=3; ins=0x200603EC;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=4: slt $4,$2,$3
+    ins_addr=4; ins=0x0043202A;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=5: beq $4,$0,+18 → exit at pc=24
+    ins_addr=5; ins=0x10800012;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=6: add $1,$1,$2 → x+=i
+    ins_addr=6; ins=0x00220820;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=7: syscall $6,$1 → print x
+    ins_addr=7; ins=0x00C1000C;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=8: addi $2,$2,1 → i++
+    ins_addr=8; ins=0x20420001;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=9: beq $0,$0,-6 → jump back to loop pc=4
+    ins_addr=9; ins=0x1000FFFA;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=10: addi $6,$0,1001
+    ins_addr=10; ins=0x200603E9;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=11: syscall $6,$0 → exit
+    ins_addr=11; ins=0x00C0000C;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // done storing instructions
+    done_storing=1;
+    Xil_Out32(base_addr+3, done_storing);
+
+    // main loop
+    while (1) {
+        flush_io_regs = 0;
+        done = 0;
+
+        while (!flush_io_regs && !done) {
+            flush_io_regs = Xil_In32(base_addr+12);
+            done          = Xil_In32(base_addr+5);
+        }
+
+        if (flush_io_regs) {
+            out[0] = Xil_In32(base_addr+6);
+            out[1] = Xil_In32(base_addr+7);
+            out[2] = Xil_In32(base_addr+8);
+            out[3] = Xil_In32(base_addr+9);
+
+            done_copying_io_regs = 1;
+            Xil_Out32(base_addr+4, done_copying_io_regs);
+            done_copying_io_regs = 0;
+            Xil_Out32(base_addr+4, done_copying_io_regs);
+
+            for (int i=0; i<4; i++) {
+                xil_printf("out%d=%d\n\r", print_out_count, out[i]);
+                print_out_count++;
+            }
+        }
+
+        if (done) {
+            io_regs_index = Xil_In32(base_addr+13);
+            int i=6;
+            while (io_regs_index > 0) {
+                out[0] = Xil_In32(base_addr+i);
+                xil_printf("out%d=%d\n\r", print_out_count, out[0]);
+                io_regs_index--;
+                print_out_count++;
+                i++;
+            }
+            break;
+        }
+    }
+
+    total_cycles = Xil_In32(base_addr+10);
+    proc_cycles  = Xil_In32(base_addr+11);
+    xil_printf("Total cycles: %u, computation cycles: %u\n\r",
+               total_cycles, proc_cycles);
+    printf("Processor cycles per instruction (CPI): %f\n\r",
+           ((float)proc_cycles)/(ins_addr+1));
+
+    return 0;
