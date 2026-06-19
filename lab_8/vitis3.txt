@@ -1,0 +1,208 @@
+#include "xil_io.h"
+#include "xil_printf.h"
+#include <stdio.h>
+
+#define base_addr XPAR_MYPROCESSOR_0_S00_AXI_BASEADDR
+
+int main() {
+    unsigned reset=1, ins_addr=0, ins, done_storing=0, done,
+             total_cycles, proc_cycles;
+    int out[4];
+    unsigned flush_io_regs, done_copying_io_regs=0,
+             io_regs_index, print_out_count=1;
+
+    // reset
+    Xil_Out32(base_addr, reset);
+    Xil_Out32(base_addr+3, done_storing);
+    Xil_Out32(base_addr+4, done_copying_io_regs);
+    reset=0;
+    Xil_Out32(base_addr, reset);
+
+    // pc=0: addi $1,$0,10   x=10
+    ins_addr=0;  ins=0x2001000A;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=1: addi $2,$0,0    i=0
+    ins_addr=1;  ins=0x20020000;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=2: addi $3,$0,30   N=30
+    ins_addr=2;  ins=0x2003001E;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=3: addi $6,$0,1004 print syscall
+    ins_addr=3;  ins=0x200603EC;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=4: slt $4,$2,$3    $4=(i<N)
+    ins_addr=4;  ins=0x0043202A;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=5: beq $4,$0,+18   exit at pc=24
+    ins_addr=5;  ins=0x10800012;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=6: andi $5,$2,1    $5=i&1
+    ins_addr=6;  ins=0x30450001;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=7: bne $5,$0,+7    odd at pc=15
+    ins_addr=7;  ins=0x14A00007;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // even branch
+    // pc=8: addi $8,$1,0    arg1=x
+    ins_addr=8;  ins=0x20280000;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=9: addi $9,$2,0    arg2=i
+    ins_addr=9;  ins=0x20490000;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=10: jal 22         call f
+    ins_addr=10; ins=0x0C000016;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=11: add $1,$1,$10  x+=result
+    ins_addr=11; ins=0x002A0820;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=12: syscall $6,$1  print x
+    ins_addr=12; ins=0x00C1000C;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=13: addi $2,$2,1   i++
+    ins_addr=13; ins=0x20420001;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=14: j 4            back to loop
+    ins_addr=14; ins=0x08000004;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // odd branch
+    // pc=15: addi $8,$1,0   arg1=x
+    ins_addr=15; ins=0x20280000;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=16: addi $9,$2,0   arg2=i
+    ins_addr=16; ins=0x20490000;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=17: jal 22         call f
+    ins_addr=17; ins=0x0C000016;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=18: sub $1,$1,$10  x-=result
+    ins_addr=18; ins=0x002A0822;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=19: syscall $6,$1  print x
+    ins_addr=19; ins=0x00C1000C;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=20: addi $2,$2,1   i++
+    ins_addr=20; ins=0x20420001;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=21: j 4            back to loop
+    ins_addr=21; ins=0x08000004;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // f function
+    // pc=22: add $10,$8,$9  result=a+b
+    ins_addr=22; ins=0x01095020;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=23: jr $31         return
+    ins_addr=23; ins=0x03E00008;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // exit
+    // pc=24: addi $6,$0,1001
+    ins_addr=24; ins=0x200603E9;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // pc=25: syscall $6,$0
+    ins_addr=25; ins=0x00C0000C;
+    Xil_Out32(base_addr+1, ins_addr);
+    Xil_Out32(base_addr+2, ins);
+
+    // done storing
+    done_storing=1;
+    Xil_Out32(base_addr+3, done_storing);
+
+    // main loop
+    while (1) {
+        flush_io_regs = 0;
+        done = 0;
+
+        while (!flush_io_regs && !done) {
+            flush_io_regs = Xil_In32(base_addr+12);
+            done          = Xil_In32(base_addr+5);
+        }
+
+        if (flush_io_regs) {
+            out[0] = Xil_In32(base_addr+6);
+            out[1] = Xil_In32(base_addr+7);
+            out[2] = Xil_In32(base_addr+8);
+            out[3] = Xil_In32(base_addr+9);
+
+            done_copying_io_regs = 1;
+            Xil_Out32(base_addr+4, done_copying_io_regs);
+            done_copying_io_regs = 0;
+            Xil_Out32(base_addr+4, done_copying_io_regs);
+
+            for (int i=0; i<4; i++) {
+                xil_printf("out%d=%d\n\r", print_out_count, out[i]);
+                print_out_count++;
+            }
+        }
+
+        if (done) {
+            io_regs_index = Xil_In32(base_addr+13);
+            int i=6;
+            while (io_regs_index > 0) {
+                out[0] = Xil_In32(base_addr+i);
+                xil_printf("out%d=%d\n\r", print_out_count, out[0]);
+                io_regs_index--;
+                print_out_count++;
+                i++;
+            }
+            break;
+        }
+    }
+
+    total_cycles = Xil_In32(base_addr+10);
+    proc_cycles  = Xil_In32(base_addr+11);
+    xil_printf("Total cycles: %u, computation cycles: %u\n\r",
+               total_cycles, proc_cycles);
+    printf("Processor cycles per instruction (CPI): %f\n\r",
+           ((float)proc_cycles)/(ins_addr+1));
+
+    return 0;
+}
